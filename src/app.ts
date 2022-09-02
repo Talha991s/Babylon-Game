@@ -1,8 +1,11 @@
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
-import {Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder}
+import {Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, Color4, FreeCamera}
 from "@babylonjs/core";
+import { AdvancedDynamicTextureTreeItemComponent } from "@babylonjs/inspector/components/sceneExplorer/entities/gui/advancedDynamicTextureTreeItemComponent";
+import {AdvancedDynamicTexture,StackPanel,Button,Control} from "@babylonjs/gui";
+
 
 //enum for states
 enum State { START = 0, GAME = 1, LOSE = 2, CUTSCENE = 3 }
@@ -77,5 +80,107 @@ class App {
 
         return this._canvas;
     }
+
+    //goToStart
+    private async _goToStart(){
+        this._engine.displayLoadingUI(); // make sure to wait for start to load.
+
+        //Scene Setup
+        //don't detect any inputs from this UI while the game is loading
+        this._scene.detachControl();
+        let scene = new Scene(this._engine);
+        scene.clearColor = new Color4(0, 0, 0, 1);
+        //creates and positions a free camera
+        let camera = new FreeCamera("camera1",new Vector3(0,0,0),scene);
+        camera.setTarget(Vector3.Zero()); //targets the camera to scene origin
+
+        //--Sounds--
+
+        //--GUI--
+        //Creat a fullscreen ui for all of our GUI elements
+        const guiMenu = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        guiMenu.idealHeight = 720; //fit our fullscreen ui to this height
+        
+        //create a simple button
+        const startBtn = Button.CreateSimpleButton("start","PLAY");
+        startBtn.width=0.2;
+        startBtn.height = "40px";
+        startBtn.color = "white";
+        startBtn.top = "-14px";
+        startBtn.thickness = 0;
+        startBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        guiMenu.addControl(startBtn);
+
+        //this handle interactions with the start button attached to the scene
+        startBtn.onPointerDownObservable.add(()=>{
+            this._goToCutScene();
+            scene.detachControl(); //observables disabled.
+
+        });
+
+        //background image
+
+        //Set up transition effect: modified version of https://www.babylonjs-playground.com/#2FGYE8#0
+
+        // start button
+
+        // Mobile
+
+        //--SCENE FINISHED LOADING--
+        await scene.whenReadyAsync();
+        this._engine.hideLoadingUI();
+        //lastly set the current state to the start state and set the scene to start scene.
+        this._scene.dispose();
+        this._scene = scene;
+        this._state = State.START;    
+    }
+
+    private async _goToCutScene(){
+        var finishedLoading = false;
+        await this._setUpGame().then((res) =>{
+            finishedLoading=true;
+        });
+
+    }
+
+    private async _setUpGame() {
+        
+    }
+    
+    //other functions
+
+    private async _goToLose() : Promise<void>{
+        this._engine.displayLoadingUI();
+
+        //--SCENE SETUP--
+        this._scene.detachControl(); // remove control
+        let scene = new Scene(this._engine);
+        scene.clearColor = new Color4(0,0,0,1);
+        let camera = new FreeCamera("camera1", new Vector3(0,0,0),scene);
+        camera.setTarget(Vector3.Zero());
+
+        //--GUI--
+        const guiMenu = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        const mainBtn = Button.CreateSimpleButton("mainmenu","MAIN MENU");
+        mainBtn.width = 0.2;
+        mainBtn.height = "40px";
+        mainBtn.color = "white";
+        guiMenu.addControl(mainBtn);
+
+        //this handles interactions with the start button attached to the scene
+
+        mainBtn.onPointerUpObservable.add(() => {
+            this._goToStart();
+        });
+
+        //--SCENE FINISHED LOADING--
+        await scene.whenReadyAsync();
+        this._engine.hideLoadingUI(); //When the scene is ready, hide loading
+        //lastly set the current state to the lose state and set the scene to the lose scene
+        this._scene.dispose();
+        this._scene = scene;
+        this._state = State.LOSE;
+    }
+
 }
 new App();
