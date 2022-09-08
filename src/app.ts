@@ -3,7 +3,6 @@ import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
 import {Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, Color4, FreeCamera}
 from "@babylonjs/core";
-import { AdvancedDynamicTextureTreeItemComponent } from "@babylonjs/inspector/components/sceneExplorer/entities/gui/advancedDynamicTextureTreeItemComponent";
 import {AdvancedDynamicTexture,StackPanel,Button,Control} from "@babylonjs/gui";
 
 
@@ -18,6 +17,8 @@ class App {
 
     //Scene - related
     private _state: number = 0;
+    private _gamescene: Scene;
+    private _cutScene: Scene;
 
     constructor() 
     {
@@ -141,10 +142,39 @@ class App {
             finishedLoading=true;
         });
 
+        //--Progress Dialogue--
+        const next = Button.CreateSimpleButton("next", "NEXT");
+        next.color = "white";
+        next.thickness = 0;
+        next.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        next.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        next.width = "64px";
+        next.height = "64px";
+        next.top = "-3%";
+        next.left = "-12%";
+        cutScene.addControl(next);
+
+        next.onPointerUpObservable.add(() =>{
+            this._goToGame();
+        });
+
+    }
+    private async _goToGame() {
+        //--SETUP SCENE--
+        this._scene.detachControl();
+        let scene = this._gamescene;
+        scene.clearColor = new Color4(0.01568627450980392, 0.01568627450980392, 0.20392156862745098); // a color that fit the overall color scheme better
+        let camera: ArcRotateCamera = new ArcRotateCamera("Camera", Math.PI/2,Math.PI/2,2,Vector3.Zero(),scene);
+        camera.setTarget(Vector3.Zero());
+
+        //--GUI--
     }
 
     private async _setUpGame() {
-        
+        let scene = new Scene(this._engine);
+        this._gamescene = scene;
+
+        //load assets
     }
     
     //other functions
