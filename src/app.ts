@@ -82,6 +82,34 @@ class App {
         return this._canvas;
     }
 
+    private async _main(): Promise<void>{
+        await this._goToStart();
+
+        //Register a render loop to reportedly render the scene
+        this._engine.runRenderLoop(()=>{
+            switch(this._state){
+                case State.START:
+                    this._scene.render();
+                    break;
+                case State.CUTSCENE:
+                    this._scene.render();
+                    break;
+                case State.GAME:
+                    this._scene.render();
+                    break;
+                case State.LOSE:
+                    this._scene.render();
+                    break;
+                default:break;
+            }
+        });
+
+        //resize if the screen is resized/rotated
+        window.addEventListener('resize',() =>{
+            this._engine.resize();
+        });
+    }
+
     //goToStart
     private async _goToStart(){
         this._engine.displayLoadingUI(); // make sure to wait for start to load.
@@ -142,6 +170,9 @@ class App {
             finishedLoading=true;
         });
 
+        //--GUI--
+        const cutScene = AdvancedDynamicTexture.CreateFullscreenUI("cutscene");
+
         //--Progress Dialogue--
         const next = Button.CreateSimpleButton("next", "NEXT");
         next.color = "white";
@@ -167,7 +198,39 @@ class App {
         let camera: ArcRotateCamera = new ArcRotateCamera("Camera", Math.PI/2,Math.PI/2,2,Vector3.Zero(),scene);
         camera.setTarget(Vector3.Zero());
 
-        //--GUI--
+        //--GUI----------------------------------
+        const playerUI = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        //don't detect any input from this ui while the game is loading 
+        scene.detachControl();
+
+        //Create a simple button
+        const loseBtn = Button.CreateSimpleButton("lose","LOSE");
+        loseBtn.width = 0.2;
+        loseBtn.height = "40px";
+        loseBtn.color = "white";
+        loseBtn.top = "-14px";
+        loseBtn.thickness = 0;
+        loseBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        playerUI.addControl(loseBtn);
+
+        //this handles interactions with the start button attached to the scene. --
+        loseBtn.onPointerDownObservable.add(()=>{
+            this._goToLose();
+            scene.detachControl(); //observables disabled
+        });
+
+        //temporary scene objects
+        var light1: HemisphericLight = new HemisphericLight("light1", new Vector3(1,1,0), scene);
+        var sphere: Mesh = MeshBuilder.CreateSphere("sphere", {diameter: 1}, scene);
+
+        //get rid of start scene, switch to gamescene and change states
+        this._scene.dispose();
+        this._state = State.GAME;
+        this._scene = scene; 
+        this._engine.hideLoadingUI();
+        
+        //the game is ready, attach control back
+        this._scene.attachControl();
     }
 
     private async _setUpGame() {
