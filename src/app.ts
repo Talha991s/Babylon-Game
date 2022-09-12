@@ -2,9 +2,12 @@
 import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
-import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, FreeCamera, Color4 } from "@babylonjs/core";
+import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, FreeCamera, Color4, Matrix, Quaternion, StandardMaterial, Color3, PointLight, ShadowGenerator } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, Control } from "@babylonjs/gui";
+import { Environment } from "./environment";
+import {Player } from "./characterController";
 
+//enum for states
 enum State { START = 0, GAME = 1, LOSE = 2, CUTSCENE = 3 }
 
 class App {
@@ -13,10 +16,17 @@ class App {
     private _canvas: HTMLCanvasElement;
     private _engine: Engine;
 
+    //Game State Related
+    public assets;
+    private _environment;
+    private _player: Player;
+
     //Scene - related
     private _state: number = 0;
     private _gamescene: Scene;
     private _cutScene: Scene;
+    
+    
 
     constructor() {
         this._canvas = this._createCanvas();
@@ -44,17 +54,17 @@ class App {
     private _createCanvas(): HTMLCanvasElement {
 
         //Commented out for development
-        document.documentElement.style["overflow"] = "hidden";
-        document.documentElement.style.overflow = "hidden";
-        document.documentElement.style.width = "100%";
-        document.documentElement.style.height = "100%";
-        document.documentElement.style.margin = "0";
-        document.documentElement.style.padding = "0";
-        document.body.style.overflow = "hidden";
-        document.body.style.width = "100%";
-        document.body.style.height = "100%";
-        document.body.style.margin = "0";
-        document.body.style.padding = "0";
+        //document.documentElement.style["overflow"] = "hidden";
+        //document.documentElement.style.overflow = "hidden";
+        //document.documentElement.style.width = "100%";
+        //document.documentElement.style.height = "100%";
+        //document.documentElement.style.margin = "0";
+        //document.documentElement.style.padding = "0";
+        //document.body.style.overflow = "hidden";
+        //document.body.style.width = "100%";
+        //document.body.style.height = "100%";
+        //document.body.style.margin = "0";
+        //document.body.style.padding = "0";
 
         //create the canvas html element and attach it to the webpage
         this._canvas = document.createElement("canvas");
@@ -94,7 +104,7 @@ class App {
         });
     }
     private async _goToStart(){
-        this._engine.displayLoadingUI();
+        this._engine.displayLoadingUI(); // loading UI while our start scene is loading
 
         this._scene.detachControl();
         let scene = new Scene(this._engine);
@@ -175,10 +185,86 @@ class App {
     }
 
     private async _setUpGame() {
+        //--CREATE SCENE--
         let scene = new Scene(this._engine);
         this._gamescene = scene;
-    
+
+        //--CREATE ENVIRONMENT
+        const environment = new Environment(scene);
+        this._environment = environment; //class variable for app
+        
         //...load assets
+
+        //load environment assets
+        await this._environment.load(); //environment.
+        //load character  assets
+        await this._loadCharacterAssets(scene); // character.  
+    }
+
+    //load character model.
+    private async _loadCharacterAssets(scene): Promise<any> {
+        
+        async function loadCharacter() {
+            
+            //collision mesh
+            const outer = MeshBuilder.CreateBox("outer", {width: 2, depth: 1, height: 3}, scene);
+            outer.isVisible = false;
+            outer.isPickable = false;
+            outer.checkCollisions= true;
+
+            //move origin of box collider to the bottom of the mesh (to match imported player mesh)
+            outer.bakeTransformIntoVertices(Matrix.Translation(0,1.5,0));
+
+            //for collision
+            outer.ellipsoid = new Vector3(1,1.5,1);
+            outer.ellipsoidOffset = new Vector3(0,1.5,0);
+
+            outer.rotationQuaternion = new Quaternion(0,1,0,0); // rotate the player mesh 180 since we want to see the back of the player
+
+            //set up capsule collider
+            var box = MeshBuilder.CreateBox("Small", {width:0.5, depth: 0.5, height: 0.25, faceColors:[new Color4(0,0,0,1), new Color4(0,0,0,1), 
+            new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1)]},scene);
+            
+            box.position.y = 1.5;
+            box.position.z =1;
+
+            var body = Mesh.CreateCylinder("body", 3, 2, 2, 0, 0, scene);
+            //add material
+            var bodymtl = new StandardMaterial("red", scene);
+            bodymtl.diffuseColor = new Color3(0.8,0.5,0.5);
+            body.material = bodymtl;
+            body.isPickable = false;
+            body.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0)); //simulates the imported mesh's origin
+
+            //parent the meshes
+            box.parent = body;
+            box.parent = outer;
+            
+            //return character mesh
+            return {
+                mesh: outer as Mesh
+            }
+        }
+
+        return loadCharacter().then(assets=>{
+            this.assets = assets;
+        });
+    }
+
+    private async _initializeGameAsync(scene): Promise<void>{
+        // temporary light to light the entire scene
+        var light0 = new HemisphericLight("Hemilight", new Vector3(0,1,0),scene);
+
+        const light = new PointLight("sparklight", new Vector3(0,0,0),scene);
+        light.diffuse = new Color3(0.08627450980392157, 0.10980392156862745, 0.15294117647058825);
+        light.intensity =35;
+        light.radius=1;
+
+        const shadowGenerator = new ShadowGenerator(1024, light);
+        shadowGenerator.darkness =0.4;
+
+        //Create the player
+        this._player = new Player(this.assets, scene, shadowGenerator); // don't have inputs yet so we don't need to pass it in
     }
 
     private async _goToGame(){
@@ -186,8 +272,8 @@ class App {
         this._scene.detachControl();
         let scene = this._gamescene;
         scene.clearColor = new Color4(0.01568627450980392, 0.01568627450980392, 0.20392156862745098); // a color that fit the overall color scheme better
-        let camera: ArcRotateCamera = new ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 2, 2, Vector3.Zero(), scene);
-        camera.setTarget(Vector3.Zero());
+        //let camera: ArcRotateCamera = new ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 2, 2, Vector3.Zero(), scene);
+        //camera.setTarget(Vector3.Zero());
 
         //--GUI--
         const playerUI = AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -210,12 +296,16 @@ class App {
             scene.detachControl(); //observables disabled
         });
 
+        //primitive character and setting
+        await this._initializeGameAsync(scene);
+
         //temporary scene objects
-        var light1: HemisphericLight = new HemisphericLight("light1", new Vector3(1, 1, 0), scene);
-        var sphere: Mesh = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
+        //var light1: HemisphericLight = new HemisphericLight("light1", new Vector3(1, 1, 0), scene);
+        //var sphere: Mesh = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
 
         //--WHEN SCENE FINISHED LOADING--
         await scene.whenReadyAsync();
+        scene.getMeshByName("outer").position = new Vector3(0,3,0);
         //get rid of start scene, switch to gamescene and change states
         this._scene.dispose();
         this._state = State.GAME;
@@ -255,5 +345,6 @@ class App {
         this._scene = scene;
         this._state = State.LOSE;
     }
+
 }
 new App();
