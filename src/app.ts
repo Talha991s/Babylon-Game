@@ -202,9 +202,9 @@ class App {
     }
 
     //load character model.
-    private async _loadCharacterAssets(scene): Promise<any> {
+    private async _loadCharacterAssets(scene){
         
-        async function loadCharacter() {
+        async function loadCharacter(){
             
             //collision mesh
             const outer = MeshBuilder.CreateBox("outer", {width: 2, depth: 1, height: 3}, scene);
@@ -222,7 +222,7 @@ class App {
             outer.rotationQuaternion = new Quaternion(0,1,0,0); // rotate the player mesh 180 since we want to see the back of the player
 
             //set up capsule collider
-            var box = MeshBuilder.CreateBox("Small", {width:0.5, depth: 0.5, height: 0.25, faceColors:[new Color4(0,0,0,1), new Color4(0,0,0,1), 
+            var box = MeshBuilder.CreateBox("Small1", {width:0.5, depth: 0.5, height: 0.25, faceColors:[new Color4(0,0,0,1), new Color4(0,0,0,1), 
             new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1)]},scene);
             
             box.position.y = 1.5;
@@ -231,7 +231,7 @@ class App {
             var body = Mesh.CreateCylinder("body", 3, 2, 2, 0, 0, scene);
             //add material
             var bodymtl = new StandardMaterial("red", scene);
-            bodymtl.diffuseColor = new Color3(0.8,0.5,0.5);
+            bodymtl.diffuseColor = new Color3(.8,.5,.5);
             body.material = bodymtl;
             body.isPickable = false;
             body.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0)); //simulates the imported mesh's origin
