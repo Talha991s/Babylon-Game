@@ -1,4 +1,4 @@
-import { ArcRotateCamera, Mesh, Scene, ShadowGenerator, TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import { ArcRotateCamera, Mesh, Quaternion, Scene, ShadowGenerator, TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
 
 export class Player extends TransformNode{
@@ -17,6 +17,14 @@ export class Player extends TransformNode{
     //const values
     private static readonly ORIGINAL_TILT: Vector3 = new Vector3(0.5934119456780721, 0, 0);
 
+    //Player Movement Var
+    private _h: number;
+    private _v:number;
+    private _moveDirection: Vector3 = new Vector3();
+    private _deltaTime: number =0;
+    private _inputAmt: number;
+    private static readonly PLAYER_SPEED: number = 0.45;
+
     constructor(assets, scene: Scene, shadowGenerator:ShadowGenerator,input?){
         super("player", scene);
         this.scene = scene;
@@ -28,6 +36,69 @@ export class Player extends TransformNode{
         shadowGenerator.addShadowCaster(assets.mesh); //the player mesh will cast shadows
 
         this._input = input; //inputs we will get from inputController.ts
+    }
+
+    private _updateFromControl():void{
+        this._deltaTime = this.scene.getEngine().getDeltaTime()/1000.0;
+
+
+        this._moveDirection = Vector3.Zero(); // vector that holds movement information 
+        this._h = this._input.horizontal; // x axis
+        this._v = this._input.vertical; // zAxis
+
+        //--MOVEMENT BASED ON CAMERA (as it rotates)--
+        let fwd = this._camRoot.forward;
+        let right= this._camRoot.right;
+        let correctedVertical = fwd.scaleInPlace(this._v);
+        let correctedHorizontal = right.scaleInPlace(this._h);
+
+        //movement based off of camera's view
+        let move = correctedHorizontal.addInPlace(correctedVertical);
+
+        //clear y so that the character doesn't fly up, normalize for next step. 
+        this._moveDirection = new Vector3((move).normalize().x,0,(move).normalize().z);
+
+        //clamp the input value so that diagonal movement isn't twice as fast
+        let inputMag = Math.abs(this._h) + Math.abs(this._v);
+        if(inputMag<0) {
+            this._inputAmt = 0;
+        }else if (inputMag > 1){
+            this._inputAmt = 1;
+        }else{
+            this._inputAmt = inputMag; //he magnitude of what our combined horizontal and vertical movements give us and clamp it to be a maximum of 1 since we don't want to move faster if we're moving diagonally.
+        }
+
+        //final movement that takes into consideration the inputs
+        this._moveDirection = this._moveDirection.scaleInPlace(this._inputAmt*Player.PLAYER_SPEED);
+
+        //Rotation
+        //check if there is movement to determine if rotation is needed
+        let input = new Vector3(this._input.horizontalAxis, 0, this._input.verticalAxis); //along which axis is the direction
+        if(input.length()==0){
+            // if there is no input detected, prevent rotation and keep player in same rotation
+            return;
+        }
+
+        //rotation based on input & Camera angle.
+        let angle = Math.atan2(this._input.horizontalAxis,this._input.verticalAxis);
+        angle += this._camRoot.rotation.y;
+        let targ = Quaternion.FromEulerAngles(0, angle,0);
+        this.mesh.rotationQuaternion = Quaternion.Slerp(this.mesh.rotationQuaternion, targ, 10*this._deltaTime);
+
+    }
+
+    //update character and activate our player
+    public activatePlayerCamera(): UniversalCamera{
+        this.scene.registerBeforeRender(() =>{
+            this._beforeRenderUpdate(); // character update function
+            this._updateCamera();
+        })
+        return this.camera;
+    }
+    private _beforeRenderUpdate() : void {
+        this._updateFromControl();
+        //move our mesh
+        this.mesh.moveWithCollisions(this._moveDirection);
     }
     
     private _setupPlayerCamera() : UniversalCamera {
@@ -54,7 +125,7 @@ export class Player extends TransformNode{
         yTilt.parent = this._camRoot;
 
         //our actual camera that's pointing at our root's position
-        this.camera = new UniversalCamera("cam", new Vector3(0,0,-70), this.scene);
+        this.camera = new UniversalCamera("cam", new Vector3(0,0,-50), this.scene);
         this.camera.lockedTarget = this._camRoot.position;
         this.camera.fov =  0.47350045992678597;
         this.camera.parent = yTilt;

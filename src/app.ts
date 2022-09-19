@@ -6,6 +6,7 @@ import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBu
 import { AdvancedDynamicTexture, Button, Control } from "@babylonjs/gui";
 import { Environment } from "./environment";
 import {Player } from "./characterController";
+import { PlayerInput } from "./inputController";
 
 //enum for states
 enum State { START = 0, GAME = 1, LOSE = 2, CUTSCENE = 3 }
@@ -25,6 +26,9 @@ class App {
     private _state: number = 0;
     private _gamescene: Scene;
     private _cutScene: Scene;
+
+    //input related
+    private _input: PlayerInput;
     
     
 
@@ -222,7 +226,6 @@ class App {
             outer.rotationQuaternion = new Quaternion(0, 1, 0, 0); // rotate the player mesh 180 since we want to see the back of the player
 
             //set up capsule collider
-            //var box = MeshBuilder.CreateBox("Small1", {width:0.5, depth: 0.5, height: 0.25, faceColors:[new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1)] }, scene);
             var box = MeshBuilder.CreateBox("Small1", { width: 0.5, depth: 0.5, height: 0.25, 
             faceColors: [new Color4(0,0,0,1), new Color4(0,0,0,1), new Color4(0,0,0,1),
             new Color4(0,0,0,1),new Color4(0,0,0,1), new Color4(0,0,0,1)] }, scene);
@@ -264,7 +267,8 @@ class App {
         shadowGenerator.darkness =0.4;
 
         //Create the player
-        this._player = new Player(this.assets, scene, shadowGenerator); // don't have inputs yet so we don't need to pass it in
+        this._player = new Player(this.assets, scene, shadowGenerator, this._input); // don't have inputs yet so we don't need to pass it in
+        const camera  = this._player.activatePlayerCamera();
     }
 
     private async _goToGame(){
@@ -295,6 +299,11 @@ class App {
             this._goToLose();
             scene.detachControl(); //observables disabled
         });
+
+
+        //--INPUT--
+        this._input =new PlayerInput(scene); //detect keyboard/mobile input
+
 
         //primitive character and setting
         await this._initializeGameAsync(scene);
