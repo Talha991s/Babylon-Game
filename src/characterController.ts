@@ -1,4 +1,4 @@
-import { ArcRotateCamera, Mesh, Quaternion, Scene, ShadowGenerator, TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
+import { ArcRotateCamera, Mesh, Quaternion, Ray, Scene, ShadowGenerator, TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
 
 export class Player extends TransformNode{
@@ -16,14 +16,25 @@ export class Player extends TransformNode{
     
     //const values
     private static readonly ORIGINAL_TILT: Vector3 = new Vector3(0.5934119456780721, 0, 0);
+    private static readonly PLAYER_SPEED: number = 0.45;
+    private static  readonly GRAVITY: number = -2.8;
+    private static readonly  JUMP_FORCE: number = 0.80;
 
     //Player Movement Var
     private _h: number;
     private _v:number;
+
     private _moveDirection: Vector3 = new Vector3();
     private _deltaTime: number =0;
     private _inputAmt: number;
-    private static readonly PLAYER_SPEED: number = 0.45;
+    
+    
+
+    //gravity, ground detection, jumping
+    private _gravity: Vector3 = new Vector3();
+    private _grounded: boolean;
+    private _lastGroundPos: Vector3 = Vector3.Zero(); // keep track of the last grounded position. 
+    
 
     constructor(assets, scene: Scene, shadowGenerator:ShadowGenerator,input?){
         super("player", scene);
@@ -38,7 +49,7 @@ export class Player extends TransformNode{
         this._input = input; //inputs we will get from inputController.ts
     }
 
-    private _updateFromControl():void{
+    private _updateFromControls():void{
         this._deltaTime = this.scene.getEngine().getDeltaTime()/1000.0;
 
 
@@ -87,6 +98,54 @@ export class Player extends TransformNode{
 
     }
 
+    //Raycast
+    private _floorRaycast(offsetx:number, offsetz:number, raycastlen:number):Vector3{
+        let raycastFloorPos = new Vector3(this.mesh.position.x + offsetx, this.mesh.position.y +0.5, this.mesh.position.z + offsetz);
+        let ray = new Ray(raycastFloorPos, Vector3.Up().scale(-1),raycastlen);
+
+        let predicate = function(mesh){
+            return mesh.isPickable && mesh.isEnabled();
+        }
+        let pick = this.scene.pickWithRay(ray, predicate);
+
+        if(pick.hit){
+            return pick.pickedPoint;
+        }else{
+            return Vector3.Zero();
+        }
+
+    }
+
+    //Grounded
+    private _isGrounded(): boolean{
+        if(this._floorRaycast(0,0,0.6).equals(Vector3.Zero())){   //0.6 so that the player detect the ground before reaching the point
+            return false;
+        }else{
+            return true;
+        }
+
+    }
+
+    //Gravity
+    private _updateGroundDetection(): void{
+        if(!this._isGrounded()){
+            this._gravity = this._gravity.addInPlace(Vector3.Up().scale(this._deltaTime*Player.GRAVITY));
+        }
+        this._grounded =false;
+
+        //limit the speed of gravity to the negative of the jump power
+        if(this._gravity.y < -Player.JUMP_FORCE) {
+            this._gravity.y = -Player.JUMP_FORCE;
+        }
+        this.mesh.moveWithCollisions(this._moveDirection.addInPlace(this._gravity));
+
+        if(this._isGrounded()){
+            this._gravity.y =0;
+            this._grounded = true;
+            this._lastGroundPos.copyFrom(this.mesh.position);
+        }
+    }
+
     //update character and activate our player
     public activatePlayerCamera(): UniversalCamera{
         this.scene.registerBeforeRender(() =>{
@@ -96,9 +155,10 @@ export class Player extends TransformNode{
         return this.camera;
     }
     private _beforeRenderUpdate() : void {
-        this._updateFromControl();
+        this._updateFromControls();
+        this._updateGroundDetection();
         //move our mesh
-        this.mesh.moveWithCollisions(this._moveDirection);
+       // this.mesh.moveWithCollisions(this._moveDirection);
     }
     
     private _setupPlayerCamera() : UniversalCamera {
